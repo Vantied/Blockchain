@@ -11,6 +11,9 @@ from kivy.animation import Animation
 from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.utils import get_color_from_hex
 from Blockchain.blockchain import Blockchain
+import base64
+import os
+from tkinter import Tk, filedialog  # Импортируем tkinter для работы с диалоговыми окнами
 
 # Фиксированный размер окна
 Window.size = (1200, 800)
@@ -68,6 +71,10 @@ class BlockchainUI(BoxLayout):
         self.entry_data = TextInput(multiline=False, size_hint_y=None, height=50, background_color=(1, 1, 1, 1), foreground_color=TEXT_COLOR, font_size=18)
         self.add_widget(self.entry_data)
 
+        self.btn_choose_file = AnimatedButton(text="Выбрать файл")
+        self.btn_choose_file.bind(on_press=self.choose_file)
+        self.add_widget(self.btn_choose_file)
+
         self.btn_add_block = AnimatedButton(text="Добавить блок")
         self.btn_add_block.bind(on_press=self.add_block)
         self.add_widget(self.btn_add_block)
@@ -92,6 +99,11 @@ class BlockchainUI(BoxLayout):
         self.text_block_info = TextInput(readonly=True, size_hint_y=None, height=150, background_color=(1, 1, 1, 1), foreground_color=TEXT_COLOR, font_size=16)
         self.add_widget(self.text_block_info)
 
+        self.btn_download_file = AnimatedButton(text="Скачать файл", size_hint_y=None, height=50)
+        self.btn_download_file.bind(on_press=self.download_file)
+        self.btn_download_file.disabled = True
+        self.add_widget(self.btn_download_file)
+
         # Загружаем список блоков при старте
         self.update_block_list()
 
@@ -100,12 +112,26 @@ class BlockchainUI(BoxLayout):
         self.background.size = self.size
         self.background.pos = self.pos
 
-    def add_block(self):
+    def choose_file(self, instance):
+        """Открывает проводник Windows для выбора файла"""
+        root = Tk()
+        root.withdraw()  # Скрываем основное окно tkinter
+        file_path = filedialog.askopenfilename()  # Открываем диалоговое окно выбора файла
+        if file_path:
+            self.selected_file_path = file_path
+
+    def add_block(self, instance):
         """Добавляет новый блок в блокчейн"""
         data = self.entry_data.text
-        if data:
-            self.blockchain.add_block(data)
+        file_data = None
+        if hasattr(self, 'selected_file_path'):
+            with open(self.selected_file_path, 'rb') as file:
+                file_data = base64.b64encode(file.read()).decode('utf-8')
+        if data or file_data:
+            self.blockchain.add_block(data, file_data)
             self.entry_data.text = ""  # Очищаем поле ввода
+            if hasattr(self, 'selected_file_path'):
+                del self.selected_file_path
             self.update_block_list()  # Обновляем список блоков
 
     def update_block_list(self):
@@ -127,7 +153,26 @@ class BlockchainUI(BoxLayout):
             f"Данные: {block.data}\n"
             f"Время создания: {normal_time}"
         )
+        if block.file_data:
+            info += "\nФайл: Присутствует"
+            self.btn_download_file.disabled = False
+            self.current_block = block
+        else:
+            info += "\nФайл: Отсутствует"
+            self.btn_download_file.disabled = True
         self.text_block_info.text = info
+
+    def download_file(self, instance):
+        """Скачивает файл из блока с выбором пути для сохранения"""
+        if hasattr(self, 'current_block'):
+            root = Tk()
+            root.withdraw()  # Скрываем основное окно tkinter
+            save_path = filedialog.asksaveasfilename(defaultextension=".*", filetypes=[("All Files", "*.*")])  # Открываем диалоговое окно для выбора пути сохранения
+            if save_path:
+                file_data = base64.b64decode(self.current_block.file_data.encode('utf-8'))
+                with open(save_path, 'wb') as file:
+                    file.write(file_data)
+                self.text_block_info.text += "\nФайл успешно скачан!"
 
     def check_chain(self, instance):
         """Проверяет валидность цепочки блоков"""
