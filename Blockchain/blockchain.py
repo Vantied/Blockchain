@@ -17,13 +17,14 @@ class Blockchain:
         self.chain.append(genesis_block)
         self.save_block_in_db(genesis_block)
 
-    def add_block(self, data):
+    def add_block(self, data, file_data=None):
         """Создание нового блока"""
         previous_block = self.chain[-1]  # Последний блок в цепочке
         new_block = self.block(
             index=len(self.chain) + 1,
             previous_hash=previous_block.hash,  # Используем хэш предыдущего блока
-            data=data
+            data=data,
+            file_data=file_data
         )
         self.chain.append(new_block)
         self.save_block_in_db(new_block)
@@ -50,7 +51,6 @@ class Blockchain:
                 return False
         return True
 
-
     def create_db(self):
         """Создаёт базу данных"""
         with sqlite3.connect("blockchain.db") as con:
@@ -61,6 +61,7 @@ class Blockchain:
                     hash TEXT,
                     previous_hash TEXT,
                     data TEXT,
+                    file_data TEXT,
                     time REAL
                 )
             ''')
@@ -79,7 +80,8 @@ class Blockchain:
                     index=row[0],
                     previous_hash=row[2],
                     data=row[3],
-                    timestamp=row[4]
+                    file_data=row[4],
+                    timestamp=row[5]
                 )
                 block.hash = row[1]
                 self.chain.append(block)
@@ -89,9 +91,9 @@ class Blockchain:
         with sqlite3.connect("blockchain.db") as con:
             cur = con.cursor()
             cur.execute("""
-                INSERT INTO Blocks (hash, previous_hash, data, time)
-                VALUES (?, ?, ?, ?)
-            """, (block.hash, block.previous_hash, str(block.data), block.timestamp))
+                INSERT INTO Blocks (hash, previous_hash, data, file_data, time)
+                VALUES (?, ?, ?, ?, ?)
+            """, (block.hash, block.previous_hash, str(block.data), block.file_data, block.timestamp))
             con.commit()
 
     def print_chain(self):
@@ -103,5 +105,6 @@ class Blockchain:
             print(f"  Hash: {block.hash}")
             print(f"  Previous Hash: {block.previous_hash}")
             print(f"  Data: {block.data}")
+            print(f"  File Data: {block.file_data}")
             print(f"  Timestamp: {normal_time}")
             print("-" * 40)
