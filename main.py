@@ -10,6 +10,7 @@ from kivy.graphics import Color, Rectangle
 from kivy.utils import get_color_from_hex
 from tkinter import Tk, filedialog
 from auxiliary.blockchain_logic import BlockchainLogic
+from kivy.graphics import RoundedRectangle
 
 # Фиксированный размер окна
 Window.size = (1200, 800)
@@ -21,15 +22,39 @@ BACKGROUND_COLOR = get_color_from_hex("#F5F5F5")  # Светло-серый
 TEXT_COLOR = get_color_from_hex("#212121")  # Тёмно-серый
 
 class AnimatedButton(Button):
-    """Кнопки"""
+    """Прямоугольные кнопки с закруглёнными краями"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.background_normal = ''
-        self.background_color = PRIMARY_COLOR
+        self.background_color = (0, 0, 0, 0)  # Прозрачный фон
         self.color = TEXT_COLOR
         self.font_size = 18
         self.size_hint_y = None
         self.height = 50
+        self.border_radius = 20  # Радиус закругления углов
+        self.bind(pos=self.update_canvas, size=self.update_canvas)
+
+        # Рисуем прямоугольник с закруглёнными углами
+        with self.canvas.before:
+            Color(*PRIMARY_COLOR)
+            self.rounded_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[self.border_radius])
+
+    def update_canvas(self, *args):
+        """Обновляет позицию и размер прямоугольника при изменении размера или позиции кнопки"""
+        self.rounded_rect.pos = self.pos
+        self.rounded_rect.size = self.size
+
+    def on_press(self):
+        """Изменяет цвет кнопки при нажатии"""
+        with self.canvas.before:
+            Color(*SECONDARY_COLOR)
+            self.rounded_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[self.border_radius])
+
+    def on_release(self):
+        """Возвращает цвет кнопки после отпускания"""
+        with self.canvas.before:
+            Color(*PRIMARY_COLOR)
+            self.rounded_rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[self.border_radius])
 
 class BlockchainUI(BoxLayout):
     def __init__(self, **kwargs):
