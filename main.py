@@ -1,4 +1,3 @@
-import datetime
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -7,13 +6,10 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.core.window import Window
-from kivy.animation import Animation
-from kivy.graphics import Color, Rectangle, RoundedRectangle
+from kivy.graphics import Color, Rectangle
 from kivy.utils import get_color_from_hex
-from Blockchain.blockchain import Blockchain
-import base64
-import os
-from tkinter import Tk, filedialog  # Импортируем tkinter для работы с диалоговыми окнами
+from tkinter import Tk, filedialog
+from auxiliary.blockchain_logic import BlockchainLogic
 
 # Фиксированный размер окна
 Window.size = (1200, 800)
@@ -25,7 +21,7 @@ BACKGROUND_COLOR = get_color_from_hex("#F5F5F5")  # Светло-серый
 TEXT_COLOR = get_color_from_hex("#212121")  # Тёмно-серый
 
 class AnimatedButton(Button):
-    """Кнопка с анимацией при наведении и нажатии"""
+    """Кнопки"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.background_normal = ''
@@ -34,19 +30,6 @@ class AnimatedButton(Button):
         self.font_size = 18
         self.size_hint_y = None
         self.height = 50
-        self.border_radius = [25]  # Закруглённые углы
-
-        # Анимация при наведении
-        self.bind(on_enter=self.on_enter)
-        self.bind(on_leave=self.on_leave)
-
-    def on_enter(self, *args):
-        """Анимация при наведении"""
-        Animation(background_color=SECONDARY_COLOR, duration=0.2).start(self)
-
-    def on_leave(self, *args):
-        """Анимация при уходе курсора"""
-        Animation(background_color=PRIMARY_COLOR, duration=0.2).start(self)
 
 class BlockchainUI(BoxLayout):
     def __init__(self, **kwargs):
@@ -61,8 +44,8 @@ class BlockchainUI(BoxLayout):
             Color(*BACKGROUND_COLOR)
             self.background = Rectangle(size=self.size, pos=self.pos)
 
-        # Инициализация блокчейна
-        self.blockchain = Blockchain()
+        # Инициализация логики блокчейна
+        self.blockchain_logic = BlockchainLogic()
 
         # Элементы интерфейса
         self.label_data = Label(text="Введите данные для нового блока:", size_hint_y=None, height=30, color=TEXT_COLOR, font_size=20)
@@ -72,7 +55,7 @@ class BlockchainUI(BoxLayout):
         self.add_widget(self.entry_data)
 
         self.btn_choose_file = AnimatedButton(text="Выбрать файл")
-        self.btn_choose_file.bind(on_press=self.choose_file)
+        self.btn_choose_file.bind(on_press=self.choose_file)  # Используем Tkinter для выбора файла
         self.add_widget(self.btn_choose_file)
 
         self.btn_add_block = AnimatedButton(text="Добавить блок")
@@ -113,7 +96,7 @@ class BlockchainUI(BoxLayout):
         self.background.pos = self.pos
 
     def choose_file(self, instance):
-        """Открывает проводник Windows для выбора файла"""
+        """Открывает проводник Windows для выбора файла через Tkinter"""
         root = Tk()
         root.withdraw()  # Скрываем основное окно tkinter
         file_path = filedialog.askopenfilename()  # Открываем диалоговое окно выбора файла
@@ -123,63 +106,47 @@ class BlockchainUI(BoxLayout):
     def add_block(self, instance):
         """Добавляет новый блок в блокчейн"""
         data = self.entry_data.text
-        file_data = None
+        file_path = getattr(self, 'selected_file_path', None)
+        self.blockchain_logic.add_block(data, file_path)
+        self.entry_data.text = ""  # Очищаем поле ввода
         if hasattr(self, 'selected_file_path'):
-            with open(self.selected_file_path, 'rb') as file:
-                file_data = base64.b64encode(file.read()).decode('utf-8')
-        if data or file_data:
-            self.blockchain.add_block(data, file_data)
-            self.entry_data.text = ""  # Очищаем поле ввода
-            if hasattr(self, 'selected_file_path'):
-                del self.selected_file_path
-            self.update_block_list()  # Обновляем список блоков
+            del self.selected_file_path
+        self.update_block_list()  # Обновляем список блоков
 
     def update_block_list(self):
         """Обновляет список блоков на экране"""
         self.block_list.clear_widgets()
-        for block in self.blockchain.chain:
+        for block in self.blockchain_logic.get_chain():
             btn = AnimatedButton(text=f"Блок #{block.index}: {block.data}")
             btn.bind(on_press=lambda btn, b=block: self.show_block_info(b))
             self.block_list.add_widget(btn)
 
     def show_block_info(self, block):
         """Показывает информацию о выбранном блоке"""
-        unix_time = block.timestamp
-        normal_time = datetime.datetime.fromtimestamp(unix_time)
-        info = (
-            f"Индекс блока: {block.index}\n"
-            f"Хэш блока: {block.hash}\n"
-            f"Хэш предыдущего блока: {block.previous_hash}\n"
-            f"Данные: {block.data}\n"
-            f"Время создания: {normal_time}"
-        )
+        info = self.blockchain_logic.get_block_info(block)
+        self.text_block_info.text = info
         if block.file_data:
-            info += "\nФайл: Присутствует"
             self.btn_download_file.disabled = False
             self.current_block = block
         else:
-            info += "\nФайл: Отсутствует"
             self.btn_download_file.disabled = True
-        self.text_block_info.text = info
 
     def download_file(self, instance):
-        """Скачивает файл из блока с выбором пути для сохранения"""
+        """Скачивает файл из блока с выбором пути для сохранения через Tkinter"""
         if hasattr(self, 'current_block'):
             root = Tk()
             root.withdraw()  # Скрываем основное окно tkinter
             save_path = filedialog.asksaveasfilename(defaultextension=".*", filetypes=[("All Files", "*.*")])  # Открываем диалоговое окно для выбора пути сохранения
             if save_path:
-                file_data = base64.b64decode(self.current_block.file_data.encode('utf-8'))
-                with open(save_path, 'wb') as file:
-                    file.write(file_data)
-                self.text_block_info.text += "\nФайл успешно скачан!"
+                if self.blockchain_logic.download_file(self.current_block, save_path):
+                    self.text_block_info.text += "\nФайл успешно скачан!"
 
     def check_chain(self, instance):
         """Проверяет валидность цепочки блоков"""
-        if self.blockchain.is_chain_valid():
-            self.text_block_info.text = "Цепочка валидная ✅"
+        if self.blockchain_logic.is_chain_valid():
+            self.text_block_info.text = "Цепочка валидная"
         else:
-            self.text_block_info.text = "Цепочка не валидная ❌"
+            self.text_block_info.text = "Цепочка не валидная"
 
 class BlockchainApp(App):
     def build(self):

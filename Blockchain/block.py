@@ -1,6 +1,5 @@
 import hashlib
 import time
-import base64
 
 class Block:
     def __init__(self, index, previous_hash, data, file_data=None, timestamp=None):
